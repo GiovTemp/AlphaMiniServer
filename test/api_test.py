@@ -39,3 +39,24 @@ def test_agent_endpoint_missing_fields():
         # mancano 'robot_id' e 'text'
     })
     assert response.status_code == 422
+
+
+def test_upload_image():
+    # This will give you the absolute path of the directory where the script is located.
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    image_path = os.path.join(BASE_DIR, 'images', 'face.jpg')
+    auth_id = ACCEPTED_AUTH_ID
+
+    # Simulate a POST request to the endpoint
+    # Open the image in binary mode
+    with open(image_path, 'rb') as image_file:
+        # Simulate a POST request to the endpoint
+        response = client.post(
+            "/upload-image",
+            files={"file": (image_path, image_file, "image/jpeg")},
+            data={"auth_id": auth_id}
+        )
+
+    # Verify the response
+    assert response.status_code == 200
+    assert response.json() == {"esito": "ok"}

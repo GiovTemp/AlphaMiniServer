@@ -4,3 +4,10 @@ python-dotenv
 pytest
 requests
 httpx
+tensorflow===2.13.0
+dlib
+opencv-python
+numpy
+pandas
+pydantic
+python-multipart
