@@ -11,3 +11,5 @@ numpy
 pandas
 pydantic
 python-multipart
+vosk
+openai
