@@ -28,10 +28,10 @@ load_dotenv()
 # Ottieni l'auth_id accettato dal file .env
 ACCEPTED_AUTH_ID = os.getenv("ACCEPTED_AUTH_ID")
 ASSISTANT_ID = os.getenv("ASSISTANT_ID")
-MARIOGPT_API_KEY = os.getenv("MARIOGPT_API_KEY")
 
 # Initialize the client
-client = openai.Client(MARIOGPT_API_KEY)
+
+client = openai.Client()
 
 # Aggiungere constanti key GPT
 
