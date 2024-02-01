@@ -60,3 +60,29 @@ def test_upload_image():
     # Verify the response
     assert response.status_code == 200
     assert response.json() == {"esito": "ok"}
+
+def test_upload_audio():
+    # Questo ti darà il percorso assoluto della directory in cui si trova lo script.
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    audio_path = os.path.join(BASE_DIR, 'audio', 'test_audio.wav')  # Sostituisci con il tuo file audio
+    auth_id = ACCEPTED_AUTH_ID
+
+    # Simula una richiesta POST all'endpoint
+    # Apri il file audio in modalità binaria
+    with open(audio_path, 'rb') as audio_file:
+        # Simula una richiesta POST all'endpoint
+        response = client.post(
+            "/upload-audio",
+            files={"file": (audio_path, audio_file, "audio/wav")},
+            data={"auth_id": auth_id}
+        )
+
+    # Verifica la risposta
+    assert response.status_code == 200
+    assert "testo" in response.json()  # Verifica che il campo 'testo' sia presente nella risposta JSON
+
+    # Verifica che il testo trascritto contenga certe parole chiave o frasi
+    expected_keywords = ["Alessio", "Policoro", "registrazione"]
+    actual_text = response.json()["testo"]
+    for keyword in expected_keywords:
+        assert keyword in actual_text, f"Expected '{keyword}' in the transcription, but it was not found."

@@ -13,11 +13,27 @@ from ar_vl_preditction import process_and_analyze_aus
 from landmarks_dection import detect_landmarks, landmarks_combination_df
 from aus import handle_au_and_emotions, predict_emotion
 
+from vosk import Model, KaldiRecognizer
+import json
+import tempfile
+import openai
+import time
+
+model_path = "vosk-model-it-0.22"
+model = Model(model_path)
+
 # Carica le variabili d'ambiente dal file .env
 load_dotenv()
 
 # Ottieni l'auth_id accettato dal file .env
 ACCEPTED_AUTH_ID = os.getenv("ACCEPTED_AUTH_ID")
+ASSISTANT_ID = os.getenv("ASSISTANT_ID")
+MARIOGPT_API_KEY = os.getenv("MARIOGPT_API_KEY")
+
+# Initialize the client
+client = openai.Client(MARIOGPT_API_KEY)
+
+# Aggiungere constanti key GPT
 
 app = FastAPI()
 
@@ -77,6 +93,76 @@ async def upload_image(auth_id: str = Form(...), file: UploadFile = File(...)):
     # Restituisci informazioni sul file ricevuto
     return {"esito": "ok"}
 
+@app.post("/upload-audio")
+async def upload_audio(auth_id: str = Form(...), file: UploadFile = File(...)):
+    if auth_id != ACCEPTED_AUTH_ID:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        audio_path = os.path.join(temp_dir, file.filename)
+
+        try:
+            # Scrivi il file audio nell'area temporanea
+            with open(audio_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+
+            # Processo di conversione da audio a testo
+            recognizer = KaldiRecognizer(model, 16000)
+            with open(audio_path, 'rb') as f:
+                while True:
+                    data = f.read(4000)
+                    if len(data) == 0:
+                        break
+                    if recognizer.AcceptWaveform(data):
+                        pass
+
+            result = json.loads(recognizer.Result())
+            text = result.get("text", "")
+        except Exception as e:
+            # Gestione dettagliata delle eccezioni, se necessario
+            return {"esito": "errore", "dettaglio": str(e)}
+
+    # La directory temporanea viene pulita automaticamente qui
+
+    # Call the function to handle the thread creation and processing
+    my_assistant_id = ASSISTANT_ID
+    response = await handle_thread_creation_and_processing(text, my_assistant_id)
+
+    return {"esito": "ok", "testo": response["messages"][0]["text"]}
+
+async def handle_thread_creation_and_processing(text, my_assistant_id):
+    # Crea un thread con il messaggio
+    thread = client.beta.threads.create(
+        messages=[
+            {
+                "role": "user",
+                "text": text,
+                "emotion": "neutral"
+            }
+        ]
+    )
+
+    # Crea una run per elaborare il thread
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id,
+        assistant_id=my_assistant_id
+    )
+
+    # Aspetta il completamento della run
+    while run.status != 'completed':
+        run = client.beta.threads.runs.retrieve(
+            thread_id=thread.id,
+            run_id=run.id
+        )
+        if run.status == 'closed':
+            return {"status": run.status, "messages": None}
+        time.sleep(1)
+
+    # Recupera i messaggi dal thread
+    thread_messages = client.beta.threads.messages.list(thread.id)
+
+    # Puoi scegliere di ritornare l'intera lista dei messaggi o elaborarla ulteriormente
+    return {"status": run.status, "messages": thread_messages}
 
 if __name__ == "__main__":
     import uvicorn
