@@ -8,6 +8,7 @@ import os
 import shutil
 from tempfile import mkdtemp
 import numpy as np
+
 sys.path.append('src')
 from ar_vl_preditction import process_and_analyze_aus
 from landmarks_dection import detect_landmarks, landmarks_combination_df
@@ -40,6 +41,7 @@ app = FastAPI()
 # Declare models globally and initialize them as None
 au_pred_model = load_model('models/au_pred_model.h5')
 arousal_valence_pred_model = load_model('models/arousal_valence_pred_model.h5')
+
 
 class AgentRequest(BaseModel):
     auth_id: str
@@ -84,14 +86,14 @@ async def upload_image(auth_id: str = Form(...), file: UploadFile = File(...)):
         landmarks_df = landmarks_combination_df(landmarks)
         prediction = au_pred_model.predict(landmarks_df)
         emotion = predict_emotion(prediction[0])
-        au_values = np.array(list(prediction[0]))
 
-        handle_au_and_emotions(au_values, emotion)
+        aus_df = handle_au_and_emotions(prediction[0], emotion)
 
-        process_and_analyze_aus(arousal_valence_pred_model)
+        process_and_analyze_aus(aus_df, arousal_valence_pred_model)
 
     # Restituisci informazioni sul file ricevuto
     return {"esito": "ok"}
+
 
 @app.post("/upload-audio")
 async def upload_audio(auth_id: str = Form(...), file: UploadFile = File(...)):
@@ -122,13 +124,12 @@ async def upload_audio(auth_id: str = Form(...), file: UploadFile = File(...)):
             # Gestione dettagliata delle eccezioni, se necessario
             return {"esito": "errore", "dettaglio": str(e)}
 
-    # La directory temporanea viene pulita automaticamente qui
-
     # Call the function to handle the thread creation and processing
     my_assistant_id = ASSISTANT_ID
     response = await handle_thread_creation_and_processing(text, my_assistant_id)
 
-    return {"esito": "ok", "testo": response["messages"][0]["text"]}
+    return {"esito": "ok", "testo": response}
+
 
 async def handle_thread_creation_and_processing(text, my_assistant_id):
     # Crea un thread con il messaggio
@@ -136,8 +137,7 @@ async def handle_thread_creation_and_processing(text, my_assistant_id):
         messages=[
             {
                 "role": "user",
-                "text": text,
-                "emotion": "neutral"
+                "content": text,
             }
         ]
     )
@@ -160,9 +160,11 @@ async def handle_thread_creation_and_processing(text, my_assistant_id):
 
     # Recupera i messaggi dal thread
     thread_messages = client.beta.threads.messages.list(thread.id)
+    response = thread_messages.data[0].content[0].text.value
 
     # Puoi scegliere di ritornare l'intera lista dei messaggi o elaborarla ulteriormente
-    return {"status": run.status, "messages": thread_messages}
+    return {"status": run.status, "output": response, "input": text}
+
 
 if __name__ == "__main__":
     import uvicorn

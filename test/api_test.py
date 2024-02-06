@@ -77,12 +77,13 @@ def test_upload_audio():
             data={"auth_id": auth_id}
         )
 
+    print(response.json())
     # Verifica la risposta
     assert response.status_code == 200
     assert "testo" in response.json()  # Verifica che il campo 'testo' sia presente nella risposta JSON
 
     # Verifica che il testo trascritto contenga certe parole chiave o frasi
     expected_keywords = ["Alessio", "Policoro", "registrazione"]
-    actual_text = response.json()["testo"]
+    actual_text = response.json()["testo"]['input']
     for keyword in expected_keywords:
         assert keyword in actual_text, f"Expected '{keyword}' in the transcription, but it was not found."
