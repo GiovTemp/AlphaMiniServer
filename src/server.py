@@ -19,6 +19,7 @@ import json
 import tempfile
 import openai
 import time
+from pydub import AudioSegment
 
 model_path = "vosk-model-it-0.22"
 model = Model(model_path)
@@ -102,11 +103,16 @@ async def upload_audio(auth_id: str = Form(...), file: UploadFile = File(...)):
 
     with tempfile.TemporaryDirectory() as temp_dir:
         audio_path = os.path.join(temp_dir, file.filename)
+        converted_audio_path = os.path.join(temp_dir, "converted_audio.wav")
 
         try:
             # Scrivi il file audio nell'area temporanea
             with open(audio_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
+
+            # Converti .3gp in .wav utilizzando pydub
+            audio = AudioSegment.from_file(audio_path, format="3gp")
+            audio.set_frame_rate(16000).set_channels(1).export(converted_audio_path, format="wav")
 
             # Processo di conversione da audio a testo
             recognizer = KaldiRecognizer(model, 16000)
