@@ -75,11 +75,16 @@ async def upload_image(auth_id: str = Form(...), file: UploadFile = File(...)):
         raise HTTPException(status_code=401, detail="Unauthorized")
     # Crea una directory temporanea
     temp_dir = mkdtemp()
+    # Il percorso dove il file verrà salvato sul server
     image_path = os.path.join(temp_dir, file.filename)
 
-    # Scrivi il file nell'area temporanea
-    with open(image_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Scrivi il file caricato nel percorso specificato
+    try:
+        with open(image_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        print(f"Errore durante la scrittura del file: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore nella scrittura del file: {e}")
 
     landmarks = detect_landmarks(image_path)
 
@@ -126,6 +131,7 @@ async def upload_audio(auth_id: str = Form(...), file: UploadFile = File(...)):
 
             result = json.loads(recognizer.Result())
             text = result.get("text", "")
+            print("Testo riconosciuto:", text)
         except Exception as e:
             # Gestione dettagliata delle eccezioni, se necessario
             return {"esito": "errore", "dettaglio": str(e)}
