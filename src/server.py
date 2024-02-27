@@ -1,6 +1,7 @@
 import sys
 
 from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from tensorflow.keras.models import load_model
@@ -100,48 +101,52 @@ async def upload_image(auth_id: str = Form(...), file: UploadFile = File(...)):
     # Restituisci informazioni sul file ricevuto
     return {"esito": "ok"}
 
-
 @app.post("/upload-audio")
 async def upload_audio(auth_id: str = Form(...), file: UploadFile = File(...)):
     if auth_id != ACCEPTED_AUTH_ID:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        audio_path = os.path.join(temp_dir, file.filename)
-        converted_audio_path = os.path.join(temp_dir, "converted_audio.wav")
+    permanent_audio_path = "src/audio"  # Definisci un percorso permanente dove salvare i file
+    if not os.path.exists(permanent_audio_path):
+        os.makedirs(permanent_audio_path)  # Crea la directory se non esiste
 
-        try:
-            # Scrivi il file audio nell'area temporanea
-            with open(audio_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+    file_path = os.path.join(permanent_audio_path, file.filename)
+    try:
+        # Salva il file caricato
+        with open(file_path, "wb") as f:
+            contents = await file.read()  # Assicurati di leggere il contenuto del file in modo asincrono
+            f.write(contents)
 
-            # Converti .3gp in .wav utilizzando pydub
-            audio = AudioSegment.from_file(audio_path, format="3gp")
-            audio.set_frame_rate(16000).set_channels(1).export(converted_audio_path, format="wav")
+        print(f"File ricevuto e salvato: {file.filename}")
+        print(f"Percorso del file salvato: {file_path}")
 
-            # Processo di conversione da audio a testo
-            recognizer = KaldiRecognizer(model, 16000)
-            with open(audio_path, 'rb') as f:
-                while True:
-                    data = f.read(4000)
-                    if len(data) == 0:
-                        break
-                    if recognizer.AcceptWaveform(data):
-                        pass
+        # Carica e converte il file audio
+        audio = AudioSegment.from_file(file_path)
+        audio = audio.set_channels(1)
+        audio = audio.set_frame_rate(16000)
+        converted_file_path = os.path.splitext(file_path)[0] + "_converted.wav"
+        audio.export(converted_file_path, format="wav")
 
-            result = json.loads(recognizer.Result())
-            text = result.get("text", "")
-            print("Testo riconosciuto:", text)
-        except Exception as e:
-            # Gestione dettagliata delle eccezioni, se necessario
-            return {"esito": "errore", "dettaglio": str(e)}
+        # Processo di conversione da audio a testo utilizzando il file WAV convertito
+        recognizer = KaldiRecognizer(model, 16000)
+        with open(converted_file_path, 'rb') as f:
+            while True:
+                data = f.read(4000)
+                if len(data) == 0:
+                    break
+                if recognizer.AcceptWaveform(data):
+                    pass
 
-    # Call the function to handle the thread creation and processing
-    my_assistant_id = ASSISTANT_ID
-    response = await handle_thread_creation_and_processing(text, my_assistant_id)
+        result = json.loads(recognizer.Result())
+        text = result.get("text", "")
+        print("Testo riconosciuto:", text)
 
-    return {"esito": "ok", "testo": response}
-
+        response = await handle_thread_creation_and_processing(text, ASSISTANT_ID)
+        print("Risposta:", response)
+        return {"esito": "ok", "testo": text, "risposta": response}
+    except Exception as e:
+        print(f"Errore durante il salvataggio o l'elaborazione del file: {e}")
+        return JSONResponse(status_code=500, content={"esito": "errore", "dettaglio": str(e)})
 
 async def handle_thread_creation_and_processing(text, my_assistant_id):
     # Crea un thread con il messaggio
