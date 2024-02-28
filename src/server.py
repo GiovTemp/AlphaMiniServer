@@ -8,7 +8,6 @@ from tensorflow.keras.models import load_model
 import os
 import shutil
 from tempfile import mkdtemp
-import numpy as np
 
 sys.path.append('src')
 from ar_vl_preditction import process_and_analyze_aus
