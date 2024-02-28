@@ -17,6 +17,10 @@ def detect_landmarks(image_path):
     # Detect faces in the image
     faces = detector_face(gray)
 
+    if len(faces) == 0:
+        # Gestisci il caso in cui non vengono rilevati volti, ad esempio:
+        return None  # o solleva un'eccezione o ritorna un messaggio di errore specifico
+
     landmarks = predictor(gray, faces[0])
     landmarks_coordinates = np.array([(landmarks.part(i).x, landmarks.part(i).y) for i in range(68)])
 

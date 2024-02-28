@@ -43,6 +43,8 @@ app = FastAPI()
 au_pred_model = load_model('models/au_pred_model.h5')
 arousal_valence_pred_model = load_model('models/arousal_valence_pred_model.h5')
 
+emotion = "neutral"
+
 
 class AgentRequest(BaseModel):
     auth_id: str
@@ -86,9 +88,13 @@ async def upload_image(auth_id: str = Form(...), file: UploadFile = File(...)):
         print(f"Errore durante la scrittura del file: {e}")
         raise HTTPException(status_code=500, detail=f"Errore nella scrittura del file: {e}")
 
+    global emotion
+
+    # Dopo aver chiamato detect_landmarks
     landmarks = detect_landmarks(image_path)
 
-    if len(landmarks) > 0:
+    # Verifica se landmarks è None prima di procedere
+    if landmarks is not None and len(landmarks) > 0:
         landmarks_df = landmarks_combination_df(landmarks)
         prediction = au_pred_model.predict(landmarks_df)
         emotion = predict_emotion(prediction[0])
@@ -96,6 +102,10 @@ async def upload_image(auth_id: str = Form(...), file: UploadFile = File(...)):
         aus_df = handle_au_and_emotions(prediction[0], emotion)
 
         process_and_analyze_aus(aus_df, arousal_valence_pred_model)
+        print("Emotion:", emotion)
+    else:
+        emotion = "neutral"
+        print("Emotion:", emotion)
 
     # Restituisci informazioni sul file ricevuto
     return {"esito": "ok"}
@@ -148,12 +158,14 @@ async def upload_audio(auth_id: str = Form(...), file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"esito": "errore", "dettaglio": str(e)})
 
 async def handle_thread_creation_and_processing(text, my_assistant_id):
+
+    content_with_emotion = f"Mi sento {emotion}. {text}"
     # Crea un thread con il messaggio
     thread = client.beta.threads.create(
         messages=[
             {
                 "role": "user",
-                "content": text,
+                "content": content_with_emotion,
             }
         ]
     )
